@@ -109,11 +109,15 @@ public class RemoteRepositoryRemoteExecutor implements RepositoryRemoteExecutor 
               platform,
               workingDirectory);
       Digest commandHash = digestUtil.compute(command);
+      System.out.println("JYWEI Command: " + command);
+      System.err.println("JYWEI Command: " + command);
       MerkleTree merkleTree = MerkleTree.build(inputFiles, digestUtil);
       Action action =
           RemoteSpawnRunner.buildAction(
               commandHash, merkleTree.getRootDigest(), timeout, acceptCached);
       Digest actionDigest = digestUtil.compute(action);
+      System.out.println("JYWEI Action: " + action.toString());
+      System.err.println("JYWEI Action: " + action.toString());
       ActionKey actionKey = new ActionKey(actionDigest);
       ActionResult actionResult;
       try (SilentCloseable c =

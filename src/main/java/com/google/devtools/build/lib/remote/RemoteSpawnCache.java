@@ -61,7 +61,9 @@ import com.google.devtools.build.lib.vfs.PathFragment;
 import io.grpc.Context;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.SortedMap;
@@ -70,6 +72,10 @@ import javax.annotation.Nullable;
 /** A remote {@link SpawnCache} implementation. */
 @ThreadSafe // If the RemoteActionCache implementation is thread-safe.
 final class RemoteSpawnCache implements SpawnCache {
+
+  static private final HashMap<String, String> hackyDarwinLinuxMappingRaw = new HashMap<String, String>() {{
+    put("6c24a7bf109b9703199403003930850f06e3abe3007e3555b16d55df9e4a6368", "cd4caf9cb4fdb9c83dc2e782c9a722cfd7a881f58016b30f558f9d1f62e6d4fa");
+  }};
 
   private final Path execRoot;
   private final RemoteOptions options;
@@ -146,7 +152,18 @@ final class RemoteSpawnCache implements SpawnCache {
         RemoteSpawnRunner.buildAction(
             digestUtil.compute(command), merkleTreeRoot, context.getTimeout(), true);
     // Look up action cache, and reuse the action output if it is found.
-    ActionKey actionKey = digestUtil.computeActionKey(action);
+    Digest actionDigest = digestUtil.compute(action);
+    ActionKey actionKey;
+    if (hackyDarwinLinuxMappingRaw.containsKey(actionDigest.getHash())) {
+      actionKey = digestUtil.asActionKey(
+          Digest.newBuilder()
+              .setHash(hackyDarwinLinuxMappingRaw.get(actionDigest.getHash()))
+              .setSizeBytes(hackyDarwinLinuxMappingRaw.get(actionDigest.getHash()).length()/2)
+              .build());
+    } else {
+      actionKey = new ActionKey(actionDigest);
+    }
+//    ActionKey actionKey = digestUtil.computeActionKey(action);
     Context withMetadata =
         TracingMetadataUtils.contextWithMetadata(buildRequestId, commandId, actionKey)
             .withValue(NetworkTime.CONTEXT_KEY, networkTime);
@@ -162,6 +179,18 @@ final class RemoteSpawnCache implements SpawnCache {
         ActionResult result;
         try (SilentCloseable c = prof.profile(ProfilerTask.REMOTE_CACHE_CHECK, "check cache hit")) {
           result = remoteCache.downloadActionResult(actionKey, /* inlineOutErr= */ false);
+          System.out.printf(
+              "__DEBUG__ merkle tree: %s\n" +
+              "__DEBUG__ lookup action key: %s\n" +
+              "__DEBUG__ result: %s\n" +
+              "__DEBUG__ command: %s\n" +
+              "__DEBUG__ command digest: %s\n",
+              merkleTreeRoot.getHash(),
+              actionKey.getDigest().getHash(),
+              result == null ? "null" : result.toString(),
+              command.toString(),
+              digestUtil.compute(command).getHash()
+            );
         }
         // In case the remote cache returned a failed action (exit code != 0) we treat it as a
         // cache miss
@@ -220,6 +249,7 @@ final class RemoteSpawnCache implements SpawnCache {
         }
         errorMsg = "Reading from Remote Cache:\n" + errorMsg;
         report(Event.warn(errorMsg));
+        report(Event.warn(e.toString()));
       } finally {
         withMetadata.detach(previous);
       }
@@ -227,8 +257,10 @@ final class RemoteSpawnCache implements SpawnCache {
 
     context.prefetchInputs();
 
-    if (options.remoteUploadLocalResults
-        || (options.incompatibleRemoteResultsIgnoreDisk && useDiskCache(options))) {
+    if (true
+//        options.remoteUploadLocalResults
+//        || (options.incompatibleRemoteResultsIgnoreDisk && useDiskCache(options))
+    ) {
       return new CacheHandle() {
         @Override
         public boolean hasResult() {

@@ -106,6 +106,8 @@ class DirectoryTreeBuilder {
         });
   }
 
+  HashMap<PathFragment, Digest> pathDigestHashMap = new HashMap<>();
+
   /**
    * Adds the files in {@code inputs} as nodes to {@code tree}.
    *
@@ -127,6 +129,8 @@ class DirectoryTreeBuilder {
           if (input instanceof VirtualActionInput) {
             VirtualActionInput virtualActionInput = (VirtualActionInput) input;
             Digest d = digestUtil.compute(virtualActionInput);
+            System.out.printf(
+                "__DEBUG__ virtual action path: %s %s\n", d.getHash(), path.toString());
             currDir.addChild(new FileNode(path.getBaseName(), virtualActionInput.getBytes(), d));
             return 1;
           }
@@ -139,6 +143,8 @@ class DirectoryTreeBuilder {
           switch (metadata.getType()) {
             case REGULAR_FILE:
               Digest d = DigestUtil.buildDigest(metadata.getDigest(), metadata.getSize());
+              System.out.printf(
+                  "__DEBUG__ regular file path: %s %s\n", d.getHash(), path.toString());
               currDir.addChild(
                   new FileNode(
                       path.getBaseName(), ActionInputHelper.toInputPath(input, execRoot), d));

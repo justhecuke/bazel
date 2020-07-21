@@ -183,8 +183,16 @@ public class RemoteCache implements AutoCloseable {
     for (Digest digest : digestsToUpload) {
       Path file = digestToFile.get(digest);
       if (file != null) {
+        System.out.printf(
+            "__DEBUG__ file: %s %s\n",
+            digest.getHash(),
+            file.toString()
+        );
         uploads.add(cacheProtocol.uploadFile(digest, file));
       } else {
+        System.out.println(
+            "__DEBUG__ blob digest: " + digest.getHash()
+        );
         ByteString blob = digestToBlobs.get(digest);
         if (blob == null) {
           String message = "FindMissingBlobs call returned an unknown digest: " + digest;
