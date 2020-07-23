@@ -304,7 +304,9 @@ public class RemoteCache implements AutoCloseable {
       FileOutErr origOutErr,
       OutputFilesLocker outputFilesLocker)
       throws ExecException, IOException, InterruptedException {
+    System.out.println("__DEBUG__ In remote cache download");
     ActionResultMetadata metadata = parseActionResultMetadata(result, execRoot);
+    System.out.printf("__DEBUG__ Parsed action result metadata: %s\n", metadata.toString());
 
     List<ListenableFuture<FileMetadata>> downloads =
         Stream.concat(
@@ -313,6 +315,10 @@ public class RemoteCache implements AutoCloseable {
                     .flatMap((entry) -> entry.getValue().files().stream()))
             .map(
                 (file) -> {
+                  System.out.printf(
+                      "__DEBUG__ download file: %s\n",
+                      file.path.getPathString()
+                  );
                   try {
                     ListenableFuture<Void> download =
                         downloadFile(toTmpDownloadPath(file.path()), file.digest());
@@ -336,6 +342,7 @@ public class RemoteCache implements AutoCloseable {
     try {
       waitForBulkTransfer(downloads, /* cancelRemainingOnInterrupt=*/ true);
     } catch (Exception e) {
+      System.out.printf("__DEBUG__ remote cache download exception: %s\n", e.toString());
       try {
         // Delete any (partially) downloaded output files.
         for (OutputFile file : result.getOutputFilesList()) {
@@ -351,6 +358,7 @@ public class RemoteCache implements AutoCloseable {
           tmpOutErr.clearErr();
         }
       } catch (IOException ioEx) {
+        System.out.printf("__DEBUG__ remote cache download ioEx: %s\n", e.toString());
         ioEx.addSuppressed(e);
 
         // If deleting of output files failed, we abort the build with a decent error message as
@@ -363,6 +371,7 @@ public class RemoteCache implements AutoCloseable {
       }
       throw e;
     }
+    System.out.println("__DEBUG__ downloaded files");
 
     if (tmpOutErr != null) {
       FileOutErr.dump(tmpOutErr, origOutErr);
@@ -450,12 +459,18 @@ public class RemoteCache implements AutoCloseable {
 
     OutputStream out = new LazyFileOutputStream(path);
     SettableFuture<Void> outerF = SettableFuture.create();
+    System.out.printf("__DEBUG__ cache protocol: %s\n", cacheProtocol.getClass().getSimpleName());
     ListenableFuture<Void> f = cacheProtocol.downloadBlob(digest, out);
     Futures.addCallback(
         f,
         new FutureCallback<Void>() {
           @Override
           public void onSuccess(Void result) {
+            System.out.printf(
+                "__DEBUG__ remote cache download success: %s %s\n",
+                digest.getHash(),
+                path.getPathString()
+            );
             try {
               out.close();
               outerF.set(null);
@@ -466,6 +481,11 @@ public class RemoteCache implements AutoCloseable {
 
           @Override
           public void onFailure(Throwable t) {
+            System.out.printf(
+                "__DEBUG__ remote cache download failure: %s %s\n",
+                digest.getHash(),
+                path.getPathString()
+            );
             try {
               out.close();
             } catch (IOException e) {
@@ -679,10 +699,20 @@ public class RemoteCache implements AutoCloseable {
 
   private ActionResultMetadata parseActionResultMetadata(ActionResult actionResult, Path execRoot)
       throws IOException, InterruptedException {
+    System.out.printf("__DEBUG__ In parse action result metadata: %s\n", actionResult.toString());
     Preconditions.checkNotNull(actionResult, "actionResult");
     Map<Path, ListenableFuture<Tree>> dirMetadataDownloads =
         Maps.newHashMapWithExpectedSize(actionResult.getOutputDirectoriesCount());
+    actionResult.getOutputDirectoriesList().forEach(
+        outputDirectory -> System.out.printf("__DEBUG__ output directory: %s\n", outputDirectory.toString())
+    );
     for (OutputDirectory dir : actionResult.getOutputDirectoriesList()) {
+      System.out.printf(
+          "__DEBUG__ dir path: %s\n" +
+          "__DEBUG__ dir path k8: %s\n",
+          dir.getPath(),
+          dir.getPath().replaceAll("darwin-", "k8-")
+      );
       dirMetadataDownloads.put(
           execRoot.getRelative(dir.getPath()),
           Futures.transform(
@@ -714,6 +744,13 @@ public class RemoteCache implements AutoCloseable {
 
     ImmutableMap.Builder<Path, FileMetadata> files = ImmutableMap.builder();
     for (OutputFile outputFile : actionResult.getOutputFilesList()) {
+      System.out.printf(
+          "__DEBUG__ remote download file: %s %s\n" +
+          "__DEBUG__ remote download file k8: %s\n",
+          outputFile.getDigest().getHash(),
+          outputFile.getPath(),
+          outputFile.getPath().replaceAll("darwin-", "k8-")
+      );
       files.put(
           execRoot.getRelative(outputFile.getPath()),
           new FileMetadata(

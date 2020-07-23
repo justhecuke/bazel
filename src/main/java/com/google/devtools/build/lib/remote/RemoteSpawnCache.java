@@ -74,7 +74,7 @@ import javax.annotation.Nullable;
 final class RemoteSpawnCache implements SpawnCache {
 
   static private final HashMap<String, String> hackyDarwinLinuxMappingRaw = new HashMap<String, String>() {{
-    put("6c24a7bf109b9703199403003930850f06e3abe3007e3555b16d55df9e4a6368", "cd4caf9cb4fdb9c83dc2e782c9a722cfd7a881f58016b30f558f9d1f62e6d4fa");
+    put("d8f2554b564d4bc1ea1131f7d16080b78f65442735434f1edefa6ce63de4dc3f", "cd4caf9cb4fdb9c83dc2e782c9a722cfd7a881f58016b30f558f9d1f62e6d4fa");
   }};
 
   private final Path execRoot;
@@ -182,15 +182,15 @@ final class RemoteSpawnCache implements SpawnCache {
           System.out.printf(
               "__DEBUG__ merkle tree: %s\n" +
               "__DEBUG__ lookup action key: %s\n" +
-              "__DEBUG__ result: %s\n" +
               "__DEBUG__ command: %s\n" +
-              "__DEBUG__ command digest: %s\n",
+              "__DEBUG__ command digest: %s\n" +
+              "__DEBUG__ result: %s\n",
               merkleTreeRoot.getHash(),
               actionKey.getDigest().getHash(),
-              result == null ? "null" : result.toString(),
               command.toString(),
-              digestUtil.compute(command).getHash()
-            );
+              digestUtil.compute(command).getHash(),
+              result == null ? "null" : result.toString()
+              );
         }
         // In case the remote cache returned a failed action (exit code != 0) we treat it as a
         // cache miss
@@ -201,10 +201,19 @@ final class RemoteSpawnCache implements SpawnCache {
                   remoteOutputsMode,
                   /* exitCode = */ 0,
                   hasFilesToDownload(spawn.getOutputFiles(), filesToDownload));
+          System.out.printf(
+              "__DEBUG__ downloadOutputs: %b\n" +
+              "__DEBUG__ outputFiles: %s\n" +
+              "__DEBUG__ filesToDownload: %s\n",
+              downloadOutputs,
+              spawn.getOutputFiles(),
+              filesToDownload.toString()
+          );
           Stopwatch fetchTime = Stopwatch.createStarted();
           if (downloadOutputs) {
             try (SilentCloseable c =
                 prof.profile(ProfilerTask.REMOTE_DOWNLOAD, "download outputs")) {
+              System.out.println("__DEBUG__ downloading from remote cache");
               remoteCache.download(
                   result, execRoot, context.getFileOutErr(), context::lockOutputFiles);
             }
